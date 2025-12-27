@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // Adicione a linha abaixo que está faltando:
   url      = env("DATABASE_URL")
 }
 
@@ -38,9 +37,10 @@ enum StatusMotorista {
 // Tabela Central de Utilizadores (Login)
 model User {
   id        String   @id @default(uuid())
+  name      String
   email     String   @unique
   password  String
-  role      UserRole
+  role      UserRole @default(ADMIN)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -69,11 +69,16 @@ model Admin {
 model Operator {
   id           String     @id @default(uuid())
   name         String
-  type         TipoPessoa
-  company      String
-  region       String
+  email     String   @unique
+  password  String // Lembre-se que precisaremos fazer hash disso depois
+  type         TipoPessoa?
+  role      String   @default("OPERATOR")
+  company      String?
+  region       String?
   cpf          String?
   cnpj         String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   
   userId       String     @unique
   user         User       @relation(fields: [userId], references: [id])
