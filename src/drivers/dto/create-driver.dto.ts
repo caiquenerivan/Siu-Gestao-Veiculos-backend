@@ -1,1 +1,31 @@
-export class CreateDriverDto {}
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from "class-validator";
+
+export class CreateDriverDto {
+  // --- Dados do USER ---
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @IsNotEmpty()
+  @IsEmail()
+  email: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(8)
+  password: string;
+
+  // --- Dados do DRIVER ---
+  @IsNotEmpty()
+  @IsString()
+  cnh: string;
+
+  @IsOptional()
+  @IsString()
+  company?: string;
+  
+  @IsOptional()
+  @IsString()
+  photoUrl?: string;
+
+}

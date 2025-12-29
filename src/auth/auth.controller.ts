@@ -26,7 +26,7 @@ export class AuthController {
     // O "req.user" foi preenchido pelo JwtStrategy que criamos no Passo 1
     return req.user;
   }
-
+  /*
   @Post('login-operator')
   async loginOperator(@Body() loginDto: SigninDto) { // Ou @Body() body: {email: string, password: string}
     const operator = await this.authService.validateOperator(
@@ -38,9 +38,9 @@ export class AuthController {
       throw new UnauthorizedException('Credenciais de Operador inválidas');
     }
 
-    return this.authService.loginOperator(operator);
+    return this.authService.loginOperator(operator);  
   }
-
+  */
   @HttpCode(HttpStatus.OK)
   @Post('login') 
   async login(@Body() signInDto: Record<string, any>) {

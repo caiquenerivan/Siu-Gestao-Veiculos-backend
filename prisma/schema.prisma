@@ -25,7 +25,7 @@ enum TipoPessoa {
 enum StatusVeiculo {
   REGULAR
   FURTO
-  ROUBO
+  IRREGULAR
 }
 
 enum StatusMotorista {
@@ -35,17 +35,20 @@ enum StatusMotorista {
 }
 
 // Tabela Central de Utilizadores (Login)
+
+
+// Tabela Central (Pai)
 model User {
   id        String   @id @default(uuid())
-  name      String
+  name      String   // O nome fica aqui
   email     String   @unique
   password  String
-  role      UserRole @default(ADMIN)
+  role      UserRole // ADMIN, OPERATOR, DRIVER
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relações (Um utilizador pode ser UM destes)
+  // Relações 1 para 1 (Opcionais, pois um User só terá UM desses preenchido)
   admin    Admin?
   operator Operator?
   driver   Driver?
@@ -53,51 +56,54 @@ model User {
   @@map("users")
 }
 
+// Extensões (Filhos)
+
 model Admin {
   id           String @id @default(uuid())
-  name         String
-  company      String
-  region       String
-  cpfCnpj      String
+  // Removemos name, email, password daqui.
+  
+  // Dados específicos de Admin
+  company      String?
+  region       String?
+  cpfCnpj      String?
   
   userId       String @unique
-  user         User   @relation(fields: [userId], references: [id])
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("admins")
 }
 
 model Operator {
   id           String     @id @default(uuid())
-  name         String
-  email     String   @unique
-  password  String // Lembre-se que precisaremos fazer hash disso depois
-  type         TipoPessoa?
-  role      String   @default("OPERATOR")
+  // Removemos name, email, password, role daqui.
+  
+  // Dados específicos de Operador
+  type         TipoPessoa?    // Ex: "CLT", "PJ" (assumindo string ou enum)
   company      String?
   region       String?
   cpf          String?
   cnpj         String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
   
   userId       String     @unique
-  user         User       @relation(fields: [userId], references: [id])
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("operators")
 }
 
 model Driver {
   id              String          @id @default(uuid())
-  name            String
+  // Removemos name daqui.
+  
+  // Dados específicos de Motorista
   cnh             String          @unique
   status          StatusMotorista @default(PENDENTE)
   photoUrl        String?
   company         String?
   toxicologyExam  DateTime?
-  publicToken     String          @unique @default(uuid()) // Para o QR Code
+  publicToken     String          @unique @default(uuid())
   
   userId          String          @unique
-  user            User            @relation(fields: [userId], references: [id])
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   currentVehicleId String?        @unique
   vehicle          Vehicle?       @relation(fields: [currentVehicleId], references: [id])

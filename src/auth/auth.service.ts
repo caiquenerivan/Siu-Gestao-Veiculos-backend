@@ -20,8 +20,9 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  // --- REGISTRO (Gera User + Admin) ---
   async signup(dto: SignupDto) {
-    // 1. Verificar se o email já existe
+    // 1. Verificar se o email já existe na tabela USER
     const userExists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -30,37 +31,38 @@ export class AuthService {
       throw new BadRequestException('Email já está em uso');
     }
 
-    // 2. Criptografar a senha (Hash)
+    // 2. Criptografar a senha
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(dto.password, salt);
 
-    // 3. Criar o Usuário e o Perfil de Admin ao mesmo tempo (Transação)
+    // 3. Criar User e Admin (Transação implícita do Prisma)
     try {
       const user = await this.prisma.user.create({
         data: {
-          name: dto.name,
-          email: dto.email,
+          name: dto.name,     // Fica na tabela User
+          email: dto.email,   // Fica na tabela User
           password: hashedPassword,
-          role: 'ADMIN', // Por enquanto, vamos forçar a criação de ADMIN
-          // Aqui usamos a relação do Prisma para criar o Admin junto
+          role: 'ADMIN',      // Define a role
+          
+          // Cria o registro na tabela admin vinculado automaticamente
           admin: {
             create: {
-              name: dto.name,
+              // name: dto.name, <--- REMOVIDO! (O nome já está no User)
               company: dto.company,
               region: dto.region,
               cpfCnpj: dto.cpfCnpj,
             },
           },
         },
-        // Selecionamos o que queremos retornar (para não devolver a senha)
+        // Seleciona o retorno para não vazar senha
         select: {
           id: true,
           email: true,
           role: true,
           admin: {
             select: {
-              name: true,
-              company: true,
+              company: true, // Só campos que existem em Admin
+              region: true,
             },
           },
         },
@@ -68,15 +70,14 @@ export class AuthService {
 
       return user;
     } catch (error) {
-      // Log do erro para você ver no terminal se algo der errado
       console.error(error);
       throw new BadRequestException('Erro ao criar usuário');
     }
   }
 
-  // --- NOVO MÉTODO: SIGNIN ---
+  // --- LOGIN MANUAL (Se você usa endpoint direto sem Guard) ---
   async signin(dto: SigninDto) {
-    // 1. Busca o usuário
+    // 1. Busca na tabela USER (serve para Admin, Driver e Operator)
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -85,32 +86,30 @@ export class AuthService {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    // 2. Compara a senha
+    // 2. Compara senha
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
-    // 3. Gera o Token JWT
+    // 3. Gera Token
+    // O payload leva o ID do User (sub) e a Role
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     return {
       access_token: await this.jwtService.signAsync(payload),
       user: {
         id: user.id,
+        name: user.name,
         email: user.email,
         role: user.role,
       },
     };
   }
 
+  // --- VALIDAÇÃO (Usado pelo Passport Local Strategy, se tiver) ---
   async validateUser(email: string, pass: string): Promise<any> {
-    // Busca o usuário no banco (ajuste conforme seu UsersService)
-    // Se você usa o UsersService:
-    // const user = await this.usersService.findByEmail(email); 
-    
-    // Se você usa Prisma direto aqui:
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (user && await bcrypt.compare(pass, user.password)) {
@@ -120,38 +119,14 @@ export class AuthService {
     return null;
   }
 
+  // --- LOGIN (Usado pelo Controller após o LocalGuard validar) ---
   async login(user: any) {
     const payload = { email: user.email, sub: user.id, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
     };
   }
-
-  // 1. Valida as credenciais do Operador
-  async validateOperator(email: string, pass: string): Promise<any> {
-    const operator = await this.prisma.operator.findUnique({
-      where: { email },
-    });
-
-    // Verifica se operador existe E se a senha bate com o Hash
-    if (operator && (await bcrypt.compare(pass, operator.password))) {
-      const { password, ...result } = operator;
-      return result;
-    }
-    return null;
-  }
-
-  // 2. Gera o Token JWT específico para Operador
-  async loginOperator(operator: any) {
-    const payload = { 
-      email: operator.email, 
-      sub: operator.id, 
-      role: operator.role || 'OPERATOR', // Garante que o token tenha a Role
-      type: 'OPERATOR' // Útil para o frontend saber quem logou
-    };
-    
-    return {
-      access_token: this.jwtService.sign(payload),
-    };
-  }
+  
+  // MÉTODOS DELETADOS: validateOperator, loginOperator
+  // Motivo: Agora o signin/validateUser acima já resolvem para operadores também.
 }

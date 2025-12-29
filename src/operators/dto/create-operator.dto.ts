@@ -1,5 +1,5 @@
 // src/operators/dto/create-operator.dto.ts
-import { IsEmail, IsString, IsOptional, IsNotEmpty, IsUUID } from 'class-validator';
+import { IsEmail, IsString, IsOptional, IsNotEmpty } from 'class-validator';
 // Se você estiver usando validação (recomendado). Se não, remova os decorators.
 
 export class CreateOperatorDto {
@@ -13,11 +13,6 @@ export class CreateOperatorDto {
   @IsString()
   @IsNotEmpty()
   password: string;
-
-  // CAMPO OBRIGATÓRIO PARA A RELAÇÃO
-  @IsUUID()
-  @IsNotEmpty()
-  userId: string; 
 
   // Campos Opcionais (conforme seu schema)
   @IsOptional()

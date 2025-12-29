@@ -1,26 +1,155 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable,NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateDriverDto } from './dto/create-driver.dto';
 import { UpdateDriverDto } from './dto/update-driver.dto';
+import * as bcrypt from 'bcrypt'; // npm install bcrypt
+import { StatusMotorista, UserRole } from '@prisma/client';
 
 @Injectable()
 export class DriversService {
-  create(createDriverDto: CreateDriverDto) {
-    return 'This action adds a new driver';
+  constructor(private prisma: PrismaService) {} 
+  // 1. CREATE (Protegido)
+ async create(data: CreateDriverDto) {
+    // Verificar se email ou CNH já existem antes de iniciar a transação
+    const userExists = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (userExists) throw new BadRequestException('Email já cadastrado');
+
+    const driverExists = await this.prisma.driver.findUnique({ where: { cnh: data.cnh } });
+    if (driverExists) throw new BadRequestException('CNH já cadastrada');
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    // TRANSAÇÃO: Ou cria os dois, ou não cria nada.
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Cria o User
+      const newUser = await tx.user.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          password: hashedPassword,
+          role: UserRole.MOTORISTA, // Força a role correta
+        },
+      });
+
+      // 2. Cria o Driver vinculado ao User
+      const newDriver = await tx.driver.create({
+        data: {
+          cnh: data.cnh,
+          company: data.company,
+          photoUrl: data.photoUrl,
+          userId: newUser.id, // VINCULO AQUI
+        },
+        include: { user: true }, // Retorna com os dados do usuário
+      });
+
+      return newDriver;
+    });
+  }
+  // 2. FIND ALL (Protegido - Admin vê tudo)
+  async findAll() {
+    return this.prisma.driver.findMany({
+      include: { 
+        user: { select: { id: true, name: true, email: true, isActive: true } },
+        vehicle: true 
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all drivers`;
+  // 3. FIND ONE (PÚBLICO - Cuidado com dados sensíveis)
+  async findOne(id: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id },
+      // SELECT: Filtra o que o público pode ver
+      include: {
+        user: { select: { name: true, email: true, isActive: true } },
+        vehicle: true,
+      },
+    });
+
+    if (!driver) {
+      throw new NotFoundException(`Motorista não encontrado`);
+    }
+
+    return driver;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} driver`;
+  // --- 4. UPDATE (Protegido) ---
+  async update(id: string, data: UpdateDriverDto) {
+      // 1. Garante que o motorista existe
+    await this.findOne(id);
+
+    // 2. Separa os dados: O que é do User e o que é do Driver?
+    // Se o DTO tiver senha, precisaria de hash, mas vamos focar em nome/email/status
+    const { 
+      name, 
+      email, 
+      status: StatusMotorista, 
+      currentVehicleId, 
+      ...driverData 
+    } = data;
+
+    return this.prisma.driver.update({
+      where: { id },
+      data: {
+        // Atualiza campos da tabela 'driver' (CNH, Company, etc)
+        ...driverData,
+        
+        // Atualiza relacionamento com Veículo (se enviado)
+        vehicle: currentVehicleId 
+          ? { connect: { id: currentVehicleId } } 
+          : undefined,
+
+        // ATUALIZAÇÃO ANINHADA: Atualiza a tabela 'user' (Pai) ao mesmo tempo
+        user: {
+          update: {
+            // Só passa os campos se eles vieram no DTO
+            ...(name && { name }),
+            ...(email && { email }),
+            ...( StatusMotorista !== undefined && { status: StatusMotorista}),
+          },
+        },
+      },
+      include: { user: true}, // Retorna o objeto atualizado completo
+    });
   }
 
-  update(id: number, updateDriverDto: UpdateDriverDto) {
-    return `This action updates a #${id} driver`;
+
+  // 5. REMOVE (Protegido)
+  async remove(id: string) {
+    // 1. Busca o motorista para pegar o ID do Usuário dele
+    const driver = await this.findOne(id);
+
+    // 2. Deleta o USUÁRIO (Pai). 
+    // Graças ao "onDelete: Cascade" no schema, o registro em 'drivers' também será apagado.
+    return this.prisma.user.delete({
+      where: { id: driver.userId },
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} driver`;
+  // --- BUSCA PÚBLICA (QR Code) Atualizada ---
+  async findByPublicToken(token: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { publicToken: token },
+      select: {
+        photoUrl: true,
+        status: true,
+        company: true,
+        // Agora o nome vem da tabela User
+        user: {
+          select: {
+            name: true, 
+          },
+        },
+        vehicle: {
+          select: { model: true, color: true, plate: true },
+        },
+      },
+    });
+
+    if (!driver) throw new NotFoundException('Link Inválido ou Expirado');
+    
+    // Opcional: Flatten (achatar) o objeto para o frontend receber { name: "...", photoUrl: "..." }
+    // em vez de { user: { name: "..." }, photoUrl: "..." }
+    return driver;
   }
 }
