@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { DriversService } from './drivers.service';
 import { CreateDriverDto } from './dto/create-driver.dto';
 import { UpdateDriverDto } from './dto/update-driver.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @Controller('drivers')
 export class DriversController {
@@ -16,8 +17,8 @@ export class DriversController {
 
   @Get()
   @UseGuards(AuthGuard('jwt'))  
-  findAll() {
-    return this.driversService.findAll();
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.driversService.findAll(paginationDto);
   }
 
   @Get(':id')

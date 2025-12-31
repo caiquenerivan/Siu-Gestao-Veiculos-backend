@@ -4,10 +4,13 @@ import { CreateDriverDto } from './dto/create-driver.dto';
 import { UpdateDriverDto } from './dto/update-driver.dto';
 import * as bcrypt from 'bcrypt'; // npm install bcrypt
 import { StatusMotorista, UserRole } from '@prisma/client';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @Injectable()
 export class DriversService {
-  constructor(private prisma: PrismaService) {} 
+  constructor(private prisma: PrismaService) {}
+  
+  
   // 1. CREATE (Protegido)
  async create(data: CreateDriverDto) {
     // Verificar se email ou CNH já existem antes de iniciar a transação
@@ -45,15 +48,48 @@ export class DriversService {
       return newDriver;
     });
   }
+
+
   // 2. FIND ALL (Protegido - Admin vê tudo)
-  async findAll() {
-    return this.prisma.driver.findMany({
-      include: { 
-        user: { select: { id: true, name: true, email: true, isActive: true } },
-        vehicle: true 
+async findAll(paginationDto: PaginationDto) {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    // Usamos Promise.all para executar as duas consultas ao mesmo tempo (Paralelismo)
+    const [drivers, total] = await Promise.all([
+      // 1. Busca os dados da página atual
+      this.prisma.driver.findMany({
+        skip: skip, // Pula os registros anteriores
+        take: limit, // Pega apenas a quantidade do limite
+        orderBy: { 
+           // É importante ordenar para garantir que a paginação não fique "sambando"
+           // Como drivers não tem createdAt no schema que vi antes, usei id ou user.createdAt
+           // Se tiver createdAt em driver, use ele.
+           user: { updatedAt: 'desc' } 
+        },
+        include: { 
+          user: { 
+            select: { id: true, name: true, email: true, isActive: true } 
+          },
+          vehicle: true 
+        },
+      }),
+
+      // 2. Conta o total de registros (para saber quantas páginas existem)
+      this.prisma.driver.count(),
+    ]);
+
+    // Retorno estruturado para o Frontend
+    return {
+      data: drivers,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+        limit,
       },
-    });
-  }
+    };
+}
 
   // 3. FIND ONE (PÚBLICO - Cuidado com dados sensíveis)
   async findOne(id: string) {
@@ -83,16 +119,19 @@ export class DriversService {
     const { 
       name, 
       email, 
-      status: StatusMotorista, 
       currentVehicleId, 
+      //status, 
       ...driverData 
     } = data;
+
 
     return this.prisma.driver.update({
       where: { id },
       data: {
         // Atualiza campos da tabela 'driver' (CNH, Company, etc)
         ...driverData,
+
+        //status: status,
         
         // Atualiza relacionamento com Veículo (se enviado)
         vehicle: currentVehicleId 
@@ -105,11 +144,10 @@ export class DriversService {
             // Só passa os campos se eles vieram no DTO
             ...(name && { name }),
             ...(email && { email }),
-            ...( StatusMotorista !== undefined && { status: StatusMotorista}),
           },
         },
       },
-      include: { user: true}, // Retorna o objeto atualizado completo
+      include: { user: true, vehicle: true }, // Retorna o objeto atualizado completo
     });
   }
 
@@ -134,10 +172,14 @@ export class DriversService {
         photoUrl: true,
         status: true,
         company: true,
+        cnh: true,
+        toxicologyExam: true,
         // Agora o nome vem da tabela User
         user: {
           select: {
             name: true, 
+            updatedAt: true,
+            createdAt: true, 
           },
         },
         vehicle: {

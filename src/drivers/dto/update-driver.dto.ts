@@ -14,5 +14,5 @@ export class UpdateDriverDto extends PartialType(CreateDriverDto) {
 
   @IsOptional()
   @IsUUID()
-  currentVehicleId?: string;
+  desvincularVeiculo?: boolean;
 }

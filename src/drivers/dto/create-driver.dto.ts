@@ -1,4 +1,5 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from "class-validator";
+import { StatusMotorista } from "@prisma/client";
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from "class-validator";
 
 export class CreateDriverDto {
   // --- Dados do USER ---
@@ -27,5 +28,14 @@ export class CreateDriverDto {
   @IsOptional()
   @IsString()
   photoUrl?: string;
+
+  @IsOptional()
+  @IsEnum(StatusMotorista)
+  status?: StatusMotorista;
+
+
+  @IsOptional()
+  @IsUUID()
+  currentVehicleId?: string;
 
 }
