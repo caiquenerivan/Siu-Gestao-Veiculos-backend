@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { env } from 'node:process';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -11,7 +12,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // 2. Ignorar token expirado? Não (false), se expirou, bloqueia.
       ignoreExpiration: false,
       // 3. A mesma senha secreta que usamos no auth.module.ts
-      secretOrKey: 'default-secret', //
+      secretOrKey: env.SECRET_KEY || 'default-secret', //
     });
   }
 

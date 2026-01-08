@@ -12,7 +12,7 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: 'default-secret', // Em produção, use env vars!
+      secret: env.JWT_SECRET || 'default-secret', // Em produção, use env vars!
       signOptions: { expiresIn: '1d' }, // O token expira em 1 dia
     }),
   ],

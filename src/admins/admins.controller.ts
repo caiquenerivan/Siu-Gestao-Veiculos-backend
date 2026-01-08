@@ -8,8 +8,8 @@ import { RolesGuard } from '../auth/guards/roles.guard'; // Importe o guard
 import { Role } from '../auth/enums/role.enum'; // Importe o enum
 
 @Controller('admins')
-@UseGuards(AuthGuard('jwt'), RolesGuard) // Protege TODAS as rotas de admins
-@Roles(Role.ADMIN)
+//@UseGuards(AuthGuard('jwt'), RolesGuard) // Protege TODAS as rotas de admins
+//@Roles(Role.ADMIN)
 export class AdminsController {
   constructor(private readonly adminsService: AdminsService) {}
 
