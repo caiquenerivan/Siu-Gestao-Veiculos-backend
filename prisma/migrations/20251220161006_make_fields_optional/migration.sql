@@ -1,4 +1,0 @@
--- AlterTable
-ALTER TABLE "operators" ALTER COLUMN "type" DROP NOT NULL,
-ALTER COLUMN "company" DROP NOT NULL,
-ALTER COLUMN "region" DROP NOT NULL;
